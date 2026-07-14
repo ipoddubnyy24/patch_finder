@@ -158,12 +158,44 @@ def test_resolve_pin_unknown_subtest(gw):
         resolve_target(gw, url=f"https://x/test_sessions/{SID}", suite="lustre-rsync-test", test="ghost_test")
 
 
-def test_resolve_pin_not_in_recent_runs(gw):
+def test_resolve_pin_cannot_tie_to_suite(gw):
     _base(gw)
+    # test_2c never occurs, so neither candidate script-id can be tied to the suite
     gw.add_test_set("ts", "other", "SU", status="FAIL")
-    gw.add_subtest("ts", "other", "TX", "PASS")   # suite runs, but never test_2c
-    with pytest.raises(ResolveError, match="could not find"):
+    gw.add_subtest("ts", "other", "TX", "PASS")
+    with pytest.raises(ResolveError, match="could not tie"):
         resolve_target(gw, url=f"https://x/test_sessions/{SID}", suite="lustre-rsync-test", test="test_2c")
+
+
+def test_resolve_pin_single_candidate(gw):
+    gw.name_set_script("SU", "mysuite")
+    gw.name_sub_script("Z", "test_z")   # unique name -> single candidate, no disambiguation
+    t = resolve_target(gw, suite="mysuite", test="test_z", job="lustre-master")
+    assert t.sub_test_script_id == "Z"
+
+
+def test_resolve_pin_disambiguates_by_suite(gw):
+    gw.name_set_script("SU", "mysuite")
+    gw.name_set_script("OTHER", "othersuite")
+    gw.name_sub_script("A", "test_x")   # belongs to othersuite
+    gw.name_sub_script("B", "test_x")   # belongs to mysuite
+    gw.add_test_set("tsA", "s", "OTHER", status="FAIL")
+    gw.add_subtest("tsA", "s", "A", "FAIL")
+    gw.add_test_set("tsB", "s", "SU", status="FAIL")
+    gw.add_subtest("tsB", "s", "B", "FAIL")
+    t = resolve_target(gw, suite="mysuite", test="test_x", job="lustre-master")
+    assert t.sub_test_script_id == "B"     # A (othersuite) skipped, B (mysuite) chosen
+
+
+def test_resolve_pin_ignores_occurrence_with_missing_test_set(gw):
+    gw.name_set_script("SU", "mysuite")
+    gw.name_sub_script("A", "test_x")
+    gw.name_sub_script("B", "test_x")
+    gw.add_subtest("ghost-ts", "s", "A", "FAIL")   # occurrence exists, but test_set row absent
+    gw.add_test_set("tsB", "s", "SU", status="FAIL")
+    gw.add_subtest("tsB", "s", "B", "FAIL")
+    t = resolve_target(gw, suite="mysuite", test="test_x", job="lustre-master")
+    assert t.sub_test_script_id == "B"
 
 
 # -- no URL ------------------------------------------------------------

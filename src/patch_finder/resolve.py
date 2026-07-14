@@ -79,18 +79,38 @@ def _pin_subtest_in_set(gw: MalooGateway, test_set_id: str, candidate_ids: set[s
     return None
 
 
-def _pin_from_recent(
-    gw: MalooGateway, suite_script_id: str, test: str, from_date: str, to_date: str, scan: int = 25
+def _suite_of_subtest_script(
+    gw: MalooGateway, sub_test_script_id: str, from_date: str, to_date: str
+) -> str | None:
+    """The suite (test_set_script_id) a subtest script belongs to, via one occurrence."""
+    row = gw.first_occurrence(sub_test_script_id, from_date, to_date)
+    if not row:
+        return None
+    ts = gw.test_set(row.get("test_set_id"))
+    return ts.get("test_set_script_id") if ts else None
+
+
+def _pin_subtest_script_id(
+    gw: MalooGateway, suite_script_id: str, test: str, from_date: str, to_date: str
 ) -> str:
-    candidates = set(gw.script_ids("sub_test", test))
+    """Resolve (suite, test) to the exact sub_test_script_id.
+
+    A test name maps to several script-ids (one per suite, plus historical
+    duplicates), so when it's ambiguous we pick the candidate whose occurrences
+    actually belong to this suite.  This is order- and volume-independent,
+    unlike scanning recent suite runs (which missed tests skipped in the runs
+    that happened to be scanned first).
+    """
+    candidates = gw.script_ids("sub_test", test)
     if not candidates:
         raise ResolveError(f"no subtest named {test!r} known to Maloo")
-    for run in gw.suite_runs(suite_script_id, from_date, to_date, max_records=scan):
-        sid = _pin_subtest_in_set(gw, run["id"], candidates)
-        if sid:
-            return sid
+    if len(candidates) == 1:
+        return candidates[0]
+    for cand in candidates:
+        if _suite_of_subtest_script(gw, cand, from_date, to_date) == suite_script_id:
+            return cand
     raise ResolveError(
-        f"could not find {test!r} in any recent run of that suite; widen --days"
+        f"could not tie {test!r} to that suite in the window; check --suite/--test or widen --days"
     )
 
 
@@ -156,7 +176,7 @@ def _resolve_session(
             if sub_id:
                 break
     if not sub_id:
-        sub_id = _pin_from_recent(gw, suite_script_id, test, from_date, to_date)
+        sub_id = _pin_subtest_script_id(gw, suite_script_id, test, from_date, to_date)
     return Target(
         suite=suite,
         suite_script_id=suite_script_id,
@@ -198,7 +218,7 @@ def resolve_target(
         if not suite_ids:
             raise ResolveError(f"unknown suite {suite!r}")
         suite_script_id = suite_ids[0]
-        sub_id = _pin_from_recent(gw, suite_script_id, test, from_date, to_date)
+        sub_id = _pin_subtest_script_id(gw, suite_script_id, test, from_date, to_date)
         target = Target(
             suite=suite,
             suite_script_id=suite_script_id,

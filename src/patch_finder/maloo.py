@@ -138,6 +138,32 @@ class MalooGateway:
             )
         return out
 
+    def first_occurrence(
+        self,
+        sub_test_script_id: str,
+        from_date: str,
+        to_date: str,
+        statuses: Sequence[str] = ("FAIL", "PASS", "SKIP", "CRASH", "TIMEOUT"),
+    ) -> dict | None:
+        """One occurrence row of a subtest in a window (to identify its suite).
+
+        Tries statuses in turn so a common test never needs an unfiltered
+        ``sub_tests`` query (which is prohibitively slow on Maloo).
+        """
+        for status in statuses:
+            rows = self._get(
+                "sub_tests",
+                {
+                    "sub_test_script_id": sub_test_script_id,
+                    "status": status,
+                    "from": from_date,
+                    "to": to_date,
+                },
+            )
+            if rows:
+                return rows[0]
+        return None
+
     def sessions(
         self,
         trigger_job: str,

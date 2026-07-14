@@ -142,6 +142,23 @@ def test_review_sessions_dedupes_and_drops_missing():
     assert sessions == [{"id": "s1"}]
 
 
+def test_first_occurrence_tries_statuses_in_order():
+    def h(url, params):
+        if params.get("status") == "FAIL":
+            return ([], 200)                                  # nothing failing
+        return ([{"id": "x", "test_set_id": "ts1"}], 200)     # PASS has a row
+
+    gw, http = gwith(h)
+    row = gw.first_occurrence("sub", "2026-07-01", "2026-07-14")
+    assert row["test_set_id"] == "ts1"
+    assert [c[1]["status"] for c in http.calls[:2]] == ["FAIL", "PASS"]
+
+
+def test_first_occurrence_none_when_absent():
+    gw, _ = gwith(lambda u, p: ([], 200))
+    assert gw.first_occurrence("sub", "2026-07-01", "2026-07-14") is None
+
+
 def test_review_sessions_with_patch_filter():
     gw, http = gwith(lambda u, p: ([], 200))
     gw.review_sessions(5, patch=2)

@@ -91,6 +91,14 @@ class FakeGateway:
             and (s.get("status") or "").upper() in wanted
         ]
 
+    def first_occurrence(self, sub_id, from_date, to_date,
+                         statuses=("FAIL", "PASS", "SKIP", "CRASH", "TIMEOUT")):
+        wanted = {s.upper() for s in statuses}
+        for s in self.subtests_tbl:
+            if s.get("sub_test_script_id") == sub_id and (s.get("status") or "").upper() in wanted:
+                return s
+        return None
+
     def sessions(self, job, from_date, to_date, failed_only=False, max_records=0):
         rows = [s for s in self.sessions_tbl.values() if s.get("trigger_job") == job]
         if failed_only:
