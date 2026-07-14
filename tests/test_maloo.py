@@ -159,3 +159,20 @@ def test_review_sessions_max_sessions_cap():
     gw, _ = gwith(h)
     sessions = gw.review_sessions(5, max_sessions=2)
     assert [s["id"] for s in sessions] == ["s1", "s2"]
+
+
+def test_review_sessions_stops_paginating_at_cap():
+    # A full first page must not stop early; the cap is only reached on page 2.
+    def h(url, params):
+        if url.endswith("/code_reviews"):
+            off = params.get("offset", 0)
+            if off == 0:
+                return ([{"test_session_id": f"s{i}"} for i in range(PAGE_SIZE)], 200)
+            return ([{"test_session_id": f"s{PAGE_SIZE + i}"} for i in range(5)], 200)
+        return ([{"id": params.get("id")}], 200)
+
+    gw, http = gwith(h)
+    sessions = gw.review_sessions(9, max_sessions=PAGE_SIZE + 1)
+    assert len(sessions) == PAGE_SIZE + 1
+    # exactly two code_reviews pages fetched, then it stopped
+    assert sum(1 for url, _ in http.calls if url.endswith("/code_reviews")) == 2

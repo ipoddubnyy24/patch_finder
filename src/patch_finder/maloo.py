@@ -168,11 +168,22 @@ class MalooGateway:
             params["review_patch"] = patch
         seen: set[str] = set()
         ordered: list[str] = []
-        for row in self._paginate("code_reviews", params):
-            sid = row.get("test_session_id")
-            if sid and sid not in seen:
-                seen.add(sid)
-                ordered.append(sid)
+        offset = 0
+        # Paginate code_reviews by hand so a cap can stop early — a heavily
+        # re-tested change can otherwise have many slow pages.
+        while True:
+            params["offset"] = offset
+            page = self._get("code_reviews", params)
+            for row in page:
+                sid = row.get("test_session_id")
+                if sid and sid not in seen:
+                    seen.add(sid)
+                    ordered.append(sid)
+            if max_sessions and len(ordered) >= max_sessions:
+                break
+            if len(page) < PAGE_SIZE:
+                break
+            offset += PAGE_SIZE
         if max_sessions:
             ordered = ordered[:max_sessions]
         return [s for s in (self.session(sid) for sid in ordered) if s]
