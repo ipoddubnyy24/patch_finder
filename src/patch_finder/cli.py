@@ -70,7 +70,22 @@ def main() -> None:
 @click.option("--fetch", is_flag=True, help="git fetch the branch before mapping")
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON envelope")
 def bisect(url, suite, test, job, base_branch, days, config_spec, clone, fetch, as_json):
-    """Find the landed patch that introduced a test regression."""
+    """Find the landed patch that introduced a test regression.
+
+    Point it at a failing run (its Maloo URL) or name the (suite, test, job).
+    It reconstructs the subtest's pass/fail history, finds where the failure
+    rate stepped up, maps that window to the commits that landed then, and
+    ranks them by each patch's own pre-landing verdict.
+
+    \b
+    Examples:
+      # from a failing run's Maloo URL
+      patch_finder bisect --url https://testing.whamcloud.com/test_sets/<uuid>
+      # by name, scoped to a branch (recommended)
+      patch_finder bisect --suite lustre-rsync-test --test test_2c --job b_es6_0
+      # narrow to one config and refresh the clone first
+      patch_finder bisect --suite sanity --test test_27a --job b_es6_0 --config fs=ldiskfs --fetch
+    """
     gw = _gateway()
     start, end = window_dates(days)
     resolved_job = branch_to_job(job) if job else None
@@ -95,7 +110,17 @@ def bisect(url, suite, test, job, base_branch, days, config_spec, clone, fetch, 
 @click.option("--max-sessions", "max_sessions", default=400, show_default=True, help="Session scan cap")
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON envelope")
 def scan(job, days, top, max_sessions, as_json):
-    """Rank a branch's most frequent recent failures (candidates to bisect)."""
+    """Rank a branch's most frequent recent failures (candidates to bisect).
+
+    Each candidate prints a ready-to-run `bisect` command. Start here when you
+    know a branch is unhealthy but not which test regressed.
+
+    \b
+    Examples:
+      patch_finder scan --job b_es6_0
+      patch_finder scan --job b_es7_0 --days 14 --top 10
+      patch_finder scan --job lustre-master --json
+    """
     gw = _gateway()
     start, end = window_dates(days)
     try:
@@ -119,7 +144,22 @@ def scan(job, days, top, max_sessions, as_json):
 @click.option("--collect", is_flag=True, help="Read the current fail-rate instead of retesting")
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON envelope")
 def confirm(change, url, suite, test, job, base_branch, days, bug, runs, execute, collect, as_json):
-    """Confirm a flaky suspect by re-running its pre-landing sessions."""
+    """Confirm a flaky suspect by re-running its pre-landing sessions.
+
+    Requeues the suspect change's existing sessions K times via `maloo retest`
+    to measure its true fail-rate. Dry-run by default (prints the commands);
+    `--execute` fires them and requires a justification ticket. Come back with
+    `--collect` once they finish to read the new rate.
+
+    \b
+    Examples:
+      # preview what would be fired (no ticket needed)
+      patch_finder confirm --change 65428 --suite lustre-rsync-test --test test_2c --job b_es6_0 --runs 20
+      # actually fire the retests
+      patch_finder confirm --change 65428 --suite lustre-rsync-test --test test_2c --job b_es6_0 --bug LU-19487 --runs 20 --execute
+      # later, read the updated fail-rate
+      patch_finder confirm --change 65428 --suite lustre-rsync-test --test test_2c --job b_es6_0 --collect
+    """
     gw = _gateway()
     start, end = window_dates(days)
     resolved_job = branch_to_job(job) if job else None
