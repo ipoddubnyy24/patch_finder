@@ -42,9 +42,11 @@ def default_retest_runner(command: list[str], timeout: int = 120) -> dict:  # pr
     }
 
 
-def _sessions_running_target(gw: MalooGateway, change_number: int, target: Target) -> list[str]:
+def _sessions_running_target(
+    gw: MalooGateway, change_number: int, target: Target, max_sessions: int = 0
+) -> list[str]:
     out: list[str] = []
-    for sess in gw.review_sessions(change_number):
+    for sess in gw.review_sessions(change_number, max_sessions=max_sessions):
         for ts in gw.test_sets_of_session(sess["id"]):
             if ts.get("test_set_script_id") != target.suite_script_id:
                 continue
@@ -58,7 +60,8 @@ def _sessions_running_target(gw: MalooGateway, change_number: int, target: Targe
 
 
 def plan(
-    gw: MalooGateway, change_number: int, target: Target, bug: str, runs: int
+    gw: MalooGateway, change_number: int, target: Target, bug: str, runs: int,
+    max_sessions: int = 0,
 ) -> list[RetestAction]:
     """Build the (dry-run) list of ``maloo retest`` invocations."""
     if not bug:
@@ -66,7 +69,7 @@ def plan(
     if runs < 1:
         raise ConfirmError("--runs must be >= 1")
     actions: list[RetestAction] = []
-    for sid in _sessions_running_target(gw, change_number, target):
+    for sid in _sessions_running_target(gw, change_number, target, max_sessions=max_sessions):
         url = gw.session_url(sid)
         for _ in range(runs):
             actions.append(
@@ -80,8 +83,11 @@ def execute(actions: list[RetestAction], runner: RetestRunner = default_retest_r
     return [{"session_id": a.session_id, **runner(a.command)} for a in actions]
 
 
-def collect(gw: MalooGateway, change_number: int, target: Target) -> dict:
+def collect(
+    gw: MalooGateway, change_number: int, target: Target, max_sessions: int = 0
+) -> dict:
     """Re-read the failing test's current pass/fail tally for this change."""
     return prelanding_verdict(
-        gw, change_number, target.suite_script_id, target.sub_test_script_id
+        gw, change_number, target.suite_script_id, target.sub_test_script_id,
+        max_sessions=max_sessions,
     )

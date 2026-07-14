@@ -59,6 +59,26 @@ def test_execute_runs_each_action(gw):
     assert len(fired) == 2
 
 
+def test_plan_respects_max_sessions(gw):
+    # two sessions both run the target; cap to the first one only
+    gw.add_session("s1", trigger_job="lustre-reviews")
+    gw.add_test_set("ts1", "s1", "SU", status="FAIL")
+    gw.add_subtest("ts1", "s1", "T2C", "FAIL")
+    gw.add_session("sB", trigger_job="lustre-reviews")
+    gw.add_test_set("tsB", "sB", "SU", status="FAIL")
+    gw.add_subtest("tsB", "sB", "T2C", "FAIL")
+    gw.link_review(100, "s1")
+    gw.link_review(100, "sB")
+    actions = plan(gw, 100, _target(), "LU-1", 2, max_sessions=1)
+    assert {a.session_id for a in actions} == {"s1"}
+    assert len(actions) == 2
+
+
+def test_collect_respects_max_sessions(gw):
+    _gw_with_target_session(gw)  # s1 has T2C fail; s3 has SU but not T2C
+    assert collect(gw, 100, _target(), max_sessions=1)["total"] == 1
+
+
 def test_collect_delegates_to_verdict(gw):
     _gw_with_target_session(gw)
     assert collect(gw, 100, _target()) == {

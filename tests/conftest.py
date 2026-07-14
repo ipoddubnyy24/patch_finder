@@ -97,16 +97,15 @@ class FakeGateway:
             rows = [s for s in rows if s.get("test_sets_failed_count", 0) > 0]
         return rows[:max_records] if max_records else rows
 
-    def review_sessions(self, review_id, patch=None):
-        out, seen = [], set()
+    def review_sessions(self, review_id, patch=None, max_sessions=0):
+        seen, ordered = set(), []
         for sid in self.code_reviews.get(review_id, []):
-            if sid in seen:
-                continue
-            seen.add(sid)
-            s = self.session(sid)
-            if s:
-                out.append(s)
-        return out
+            if sid not in seen:
+                seen.add(sid)
+                ordered.append(sid)
+        if max_sessions:
+            ordered = ordered[:max_sessions]
+        return [s for s in (self.session(sid) for sid in ordered) if s]
 
 
 @pytest.fixture

@@ -224,6 +224,23 @@ def test_confirm_execute(runner, gw, monkeypatch):
     assert "fired 1 retest" in result.output
 
 
+def test_confirm_max_sessions_warning(runner, gw, monkeypatch):
+    _seed_confirm(gw)
+    _use(monkeypatch, gw)
+    result = runner.invoke(cli.main, _confirm_args("--runs", "1", "--max-sessions", "5"))
+    assert result.exit_code == 0
+    assert "considered at most 5" in result.output
+
+
+def test_bisect_max_sessions_option(runner, gw, monkeypatch):
+    _seed_regression(gw)
+    _use(monkeypatch, gw)
+    monkeypatch.setattr(gitmap, "commits_in_window", lambda *a, **k: [])
+    result = runner.invoke(cli.main, ["bisect", "--url", URL, "--max-sessions", "3"])
+    assert result.exit_code == 0
+    assert "at most 3 pre-landing" in result.output
+
+
 def test_confirm_collect(runner, gw, monkeypatch):
     _seed_confirm(gw)
     _use(monkeypatch, gw)

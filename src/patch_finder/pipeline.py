@@ -76,6 +76,7 @@ def run_bisect(
     max_suspects: int = 30,
     max_attempts: int = 3000,
     max_job_sessions: int = 5000,
+    max_change_sessions: int = 0,
 ) -> dict:
     warnings: list[str] = []
     # Failures are rare and fast to fetch; total attempts come from the suite's
@@ -126,8 +127,14 @@ def run_bisect(
             )
             commits = commits[:max_suspects]
         suspects = rank(
-            gw, commits, target, lambda sha: gitmap.files_of(git_run, clone, sha)
+            gw, commits, target, lambda sha: gitmap.files_of(git_run, clone, sha),
+            max_sessions=max_change_sessions,
         )
+        if max_change_sessions:
+            warnings.append(
+                f"ranked using at most {max_change_sessions} pre-landing session(s) "
+                f"per suspect (--max-sessions)"
+            )
         if cp.classification == "flaky-stable":
             note = (
                 "no clear step-change: persistent flakiness or sparse data. "

@@ -145,6 +145,20 @@ def test_bisect_attempt_cap_warning(gw):
     assert any("suite-run fetch hit" in w for w in data["warnings"])
 
 
+def test_bisect_max_change_sessions_warns(gw, monkeypatch):
+    for i in range(1, 11):
+        add_attempt(gw, i, False)
+    for i in range(11, 21):
+        add_attempt(gw, i, True)
+    gw.add_session("pre", trigger_job="lustre-other")
+    gw.add_test_set("prets", "pre", "SU", status="FAIL", submission="2026-07-11")
+    gw.add_subtest("prets", "pre", "T2C", "FAIL")
+    gw.link_review(100, "pre")
+    patch_git(monkeypatch, [Commit("c1", "2026-07-11", "A", "x", 100)])
+    data = pipeline.run_bisect(gw, target(), "2026-07-01", "2026-07-21", max_change_sessions=1)
+    assert any("at most 1 pre-landing" in w for w in data["warnings"])
+
+
 def test_bisect_git_error_warns(gw, monkeypatch):
     for i in range(1, 11):
         add_attempt(gw, i, False)

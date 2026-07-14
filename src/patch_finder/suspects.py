@@ -34,13 +34,21 @@ class Suspect:
 
 
 def prelanding_verdict(
-    gw: MalooGateway, change_number: int | None, suite_script_id: str, sub_test_script_id: str
+    gw: MalooGateway,
+    change_number: int | None,
+    suite_script_id: str,
+    sub_test_script_id: str,
+    max_sessions: int = 0,
 ) -> dict:
-    """How the failing test fared in this change's own pre-landing sessions."""
+    """How the failing test fared in this change's own pre-landing sessions.
+
+    ``max_sessions`` (0 = unlimited) bounds how many of the change's sessions
+    are drilled.
+    """
     if change_number is None:
         return {"tested": False, "failed": False, "fail": 0, "total": 0}
     fail = total = 0
-    for sess in gw.review_sessions(change_number):
+    for sess in gw.review_sessions(change_number, max_sessions=max_sessions):
         for ts in gw.test_sets_of_session(sess["id"]):
             if ts.get("test_set_script_id") != suite_script_id:
                 continue
@@ -75,12 +83,17 @@ def diff_relevance(
 
 
 def rank(
-    gw: MalooGateway, commits: list[Commit], target: Target, files_getter: FilesGetter
+    gw: MalooGateway,
+    commits: list[Commit],
+    target: Target,
+    files_getter: FilesGetter,
+    max_sessions: int = 0,
 ) -> list[Suspect]:
     suspects: list[Suspect] = []
     for c in commits:
         verdict = prelanding_verdict(
-            gw, c.change_number, target.suite_script_id, target.sub_test_script_id
+            gw, c.change_number, target.suite_script_id, target.sub_test_script_id,
+            max_sessions=max_sessions,
         )
         files = files_getter(c.sha) if c.change_number is not None else []
         relevance, reasons = diff_relevance(files, c.subject, target.suite, target.error_sample)

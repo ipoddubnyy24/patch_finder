@@ -174,6 +174,7 @@ confirm the top suspect:
 | `--days` | 14 | Look-back window. |
 | `--clone` | `~/work/src/lustre/lustre-release` | Local `ex/lustre-release` clone. |
 | `--fetch` | off | `git fetch` the branch before mapping. |
+| `--max-sessions` | 0 (all) | Cap pre-landing sessions drilled per suspect — bounds ranking cost on heavily-tested changes. |
 
 ### `confirm` — actively confirm a flaky suspect
 
@@ -213,6 +214,7 @@ confirm change 67068: lustre-rsync-test test_2c  mode=collect
 | `--runs` | 20 | How many retests to fire. |
 | `--execute` | off | Actually fire (default is dry-run). |
 | `--collect` | off | Read the current fail-rate instead of retesting. |
+| `--max-sessions` | 0 (all) | Cap pre-landing sessions considered — bounds cost on changes tested in many configs. |
 
 ---
 
@@ -311,6 +313,10 @@ enumerates every PASS of a common subtest.)
 
 **`branch not found in clone`.** The `--branch`/base isn't in your clone. Fetch it
 or pick another with `--branch`.
+
+**`confirm` or `bisect` feels slow.** A change tested in many sessions/configs is
+expensive to drill. Bound it with `--max-sessions N` (e.g. 30) — the result then
+reflects a sample of the change's sessions and is flagged as such in the output.
 
 ---
 

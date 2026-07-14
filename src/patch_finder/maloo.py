@@ -155,8 +155,14 @@ class MalooGateway:
             params["test_sets_failed"] = "true"
         return self._paginate("test_sessions", params, max_records)
 
-    def review_sessions(self, review_id: int, patch: int | None = None) -> list[dict]:
-        """The test sessions a Gerrit change was tested in, via ``code_reviews``."""
+    def review_sessions(
+        self, review_id: int, patch: int | None = None, max_sessions: int = 0
+    ) -> list[dict]:
+        """The test sessions a Gerrit change was tested in, via ``code_reviews``.
+
+        ``max_sessions`` (0 = unlimited) caps how many sessions are drilled — a
+        change tested in many configs/patchsets is otherwise expensive to walk.
+        """
         params: dict[str, Any] = {"review_id": review_id}
         if patch is not None:
             params["review_patch"] = patch
@@ -167,4 +173,6 @@ class MalooGateway:
             if sid and sid not in seen:
                 seen.add(sid)
                 ordered.append(sid)
+        if max_sessions:
+            ordered = ordered[:max_sessions]
         return [s for s in (self.session(sid) for sid in ordered) if s]

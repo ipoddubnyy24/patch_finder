@@ -68,8 +68,11 @@ def main() -> None:
 @click.option("--config", "config_spec", default=None, help="Filter, e.g. 'fs=ldiskfs,distro=RHEL 8.10'")
 @click.option("--clone", default=str(DEFAULT_CLONE), show_default=True, help="Local lustre-release clone")
 @click.option("--fetch", is_flag=True, help="git fetch the branch before mapping")
+@click.option("--max-sessions", "max_change_sessions", default=0, show_default=True,
+              help="Cap pre-landing sessions drilled per suspect (0 = all)")
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON envelope")
-def bisect(url, suite, test, job, base_branch, days, config_spec, clone, fetch, as_json):
+def bisect(url, suite, test, job, base_branch, days, config_spec, clone, fetch,
+           max_change_sessions, as_json):
     """Find the landed patch that introduced a test regression.
 
     Point it at a failing run (its Maloo URL) or name the (suite, test, job).
@@ -97,7 +100,8 @@ def bisect(url, suite, test, job, base_branch, days, config_spec, clone, fetch, 
         )
         if fetch:
             _try_fetch(clone, target.base_branch)
-        data = run_bisect(gw, target, start, end, clone=clone, config_filter=cfg)
+        data = run_bisect(gw, target, start, end, clone=clone, config_filter=cfg,
+                          max_change_sessions=max_change_sessions)
     except (ResolveError, ValueError, GitError, MalooError) as exc:
         raise click.ClickException(str(exc))
     _emit(data, "bisect", as_json)
@@ -142,8 +146,11 @@ def scan(job, days, top, max_sessions, as_json):
 @click.option("--runs", default=20, show_default=True, help="Number of retests to fire")
 @click.option("--execute", is_flag=True, help="Actually fire the retests (default: dry-run)")
 @click.option("--collect", is_flag=True, help="Read the current fail-rate instead of retesting")
+@click.option("--max-sessions", default=0, show_default=True,
+              help="Cap pre-landing sessions considered (0 = all)")
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON envelope")
-def confirm(change, url, suite, test, job, base_branch, days, bug, runs, execute, collect, as_json):
+def confirm(change, url, suite, test, job, base_branch, days, bug, runs, execute, collect,
+            max_sessions, as_json):
     """Confirm a flaky suspect by re-running its pre-landing sessions.
 
     Requeues the suspect change's existing sessions K times via `maloo retest`
@@ -165,6 +172,9 @@ def confirm(change, url, suite, test, job, base_branch, days, bug, runs, execute
     resolved_job = branch_to_job(job) if job else None
     if execute and not bug:
         raise click.ClickException("--execute requires --bug LU-xxxxx")
+    warnings = []
+    if max_sessions:
+        warnings.append(f"considered at most {max_sessions} pre-landing session(s) (--max-sessions)")
     try:
         target = resolve_target(
             gw, url=url, suite=suite, test=test, job=resolved_job,
@@ -174,20 +184,22 @@ def confirm(change, url, suite, test, job, base_branch, days, bug, runs, execute
         if collect:
             data = {
                 "change": change, "target": label, "mode": "collect",
-                "verdict": cf.collect(gw, change, target), "warnings": [],
+                "verdict": cf.collect(gw, change, target, max_sessions=max_sessions),
+                "warnings": warnings,
             }
         else:
-            actions = cf.plan(gw, change, target, bug or "LU-XXXXX", runs)
+            actions = cf.plan(gw, change, target, bug or "LU-XXXXX", runs, max_sessions=max_sessions)
             if execute:
                 data = {
                     "change": change, "target": label, "mode": "execute",
-                    "results": cf.execute(actions), "warnings": [],
+                    "results": cf.execute(actions), "warnings": warnings,
                 }
             else:
+                placeholder = [] if bug else ["dry-run using placeholder ticket LU-XXXXX; pass --bug for real"]
                 data = {
                     "change": change, "target": label, "mode": "dry-run",
                     "actions": [{"command": a.command, "session_id": a.session_id} for a in actions],
-                    "warnings": [] if bug else ["dry-run using placeholder ticket LU-XXXXX; pass --bug for real"],
+                    "warnings": warnings + placeholder,
                 }
     except (ResolveError, ConfirmError, ValueError, MalooError) as exc:
         raise click.ClickException(str(exc))

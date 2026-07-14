@@ -146,3 +146,16 @@ def test_review_sessions_with_patch_filter():
     gw, http = gwith(lambda u, p: ([], 200))
     gw.review_sessions(5, patch=2)
     assert http.calls[0][1]["review_patch"] == 2
+
+
+def test_review_sessions_max_sessions_cap():
+    def h(url, params):
+        if url.endswith("/code_reviews"):
+            if params.get("offset", 0):
+                return ([], 200)
+            return ([{"test_session_id": s} for s in ("s1", "s2", "s3")], 200)
+        return ([{"id": params.get("id")}], 200)
+
+    gw, _ = gwith(h)
+    sessions = gw.review_sessions(5, max_sessions=2)
+    assert [s["id"] for s in sessions] == ["s1", "s2"]
