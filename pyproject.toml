@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patch_finder"
+version = "0.1.0"
+description = "Find the Lustre patch that introduced a Maloo test regression, mostly without rebuilding."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Ivan Poddubnyy" }]
+dependencies = ["click>=8.1", "requests>=2.28"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov>=4"]
+
+[project.scripts]
+patch_finder = "patch_finder.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=patch_finder --cov-report=term-missing --cov-fail-under=100 -q"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["patch_finder"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
